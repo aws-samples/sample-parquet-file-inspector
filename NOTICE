@@ -1,0 +1,32 @@
+Parquet File Inspector
+Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+Licensed under the MIT-0 License. See LICENSE file.
+
+**********************
+THIRD PARTY COMPONENTS
+**********************
+
+This software includes the following third-party components,
+used in accordance with their respective licenses:
+
+--------------------------------------------------------------------------------
+DuckDB
+https://github.com/duckdb/duckdb
+Copyright 2018-2024 Stichting DuckDB Foundation
+License: MIT (https://opensource.org/licenses/MIT)
+
+Included files:
+  - src/frontend/duckdb/duckdb-browser.mjs
+  - src/frontend/duckdb/duckdb-browser-eh.worker.js
+  - src/frontend/duckdb/duckdb-browser-mvp.worker.js
+  - src/frontend/duckdb/duckdb-eh.wasm (downloaded at deploy time)
+  - src/frontend/duckdb/duckdb-mvp.wasm (downloaded at deploy time)
+
+--------------------------------------------------------------------------------
+Apache Arrow
+https://github.com/apache/arrow
+Copyright 2016-2024 The Apache Software Foundation
+License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+
+Loaded at runtime via CDN (apache-arrow v17.0.0). Not bundled in this repository.

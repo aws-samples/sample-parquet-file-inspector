@@ -1,0 +1,16 @@
+{
+  "name": "parquet-file-inspector-infra",
+  "version": "1.0.0",
+  "description": "AWS CDK infrastructure for the Parquet File Inspector (S3 + CloudFront)",
+  "scripts": {
+    "build": "true",
+    "cdk": "cdk",
+    "deploy": "cdk deploy --require-approval never",
+    "destroy": "cdk destroy --force",
+    "synth": "cdk synth"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.0.0"
+  }
+}

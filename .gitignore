@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+dist/
+build/
+cdk.out/
+
+# Sample data (generated, not committed - too large)
+# Matches anywhere: the generator scripts write to the CWD, and the demo file
+# must be copied into src/frontend/ to be served.
+*.parquet
+
+# DuckDB WASM binaries (downloaded at build time)
+src/frontend/duckdb/*.wasm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# CDK
+infrastructure/cdk.out/

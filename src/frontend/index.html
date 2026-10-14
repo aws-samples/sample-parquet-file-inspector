@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parquet File Inspector</title>
+<style>
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-hover: #30363d;
+  --border: #30363d;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent-blue: #58a6ff;
+  --accent-green: #3fb950;
+  --accent-orange: #d29922;
+  --accent-red: #f85149;
+  --accent-purple: #bc8cff;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Demo / educational-use banner */
+.demo-banner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 20px; flex-shrink: 0;
+  background: rgba(210,153,34,0.12);
+  border-bottom: 1px solid rgba(210,153,34,0.35);
+  color: var(--accent-orange);
+  font-size: 12px; line-height: 1.4;
+}
+.demo-banner strong { font-weight: 600; }
+.demo-banner span.sep { color: var(--text-muted); }
+.demo-banner .note { color: var(--text-secondary); }
+
+/* Header */
+.header {
+  display: flex; align-items: center; padding: 12px 20px;
+  background: var(--bg-secondary); border-bottom: 1px solid var(--border); gap: 16px; flex-shrink: 0;
+}
+.header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
+.header h1 span { color: var(--accent-blue); }
+.drop-zone {
+  flex: 1; border: 2px dashed var(--border); border-radius: 8px;
+  padding: 8px 16px; text-align: center; color: var(--text-secondary);
+  font-size: 13px; cursor: pointer; transition: all 0.2s;
+}
+.drop-zone.dragover { border-color: var(--accent-blue); background: rgba(88,166,255,0.05); }
+.drop-zone.has-file { border-color: var(--accent-green); color: var(--accent-green); }
+.drop-zone.error { border-color: var(--accent-red); color: var(--accent-red); }
+.btn {
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg-tertiary); color: var(--text-primary); font-size: 12px;
+  cursor: pointer; white-space: nowrap; transition: background 0.2s;
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: rgba(88,166,255,0.15); border-color: rgba(88,166,255,0.4); color: var(--accent-blue); }
+
+/* Tabs */
+.tab-bar { display: flex; background: var(--bg-secondary); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.tab {
+  padding: 10px 20px; font-size: 13px; cursor: pointer; color: var(--text-secondary);
+  border-bottom: 2px solid transparent; transition: all 0.2s;
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+/* Content */
+.content { flex: 1; overflow: hidden; }
+.tab-panel { display: none; width: 100%; height: 100%; overflow: hidden; }
+.tab-panel.active { display: flex; }
+
+/* Structure tab */
+.structure-panel { display: flex; width: 100%; height: 100%; }
+.tree-panel {
+  width: 280px; min-width: 220px; border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 12px; flex-shrink: 0;
+}
+.detail-panel { flex: 1; overflow-y: auto; padding: 20px; }
+
+/* Tree */
+.tree-item {
+  padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;
+  color: var(--text-secondary); transition: background 0.15s; display: flex; align-items: center; gap: 6px;
+}
+.tree-item:hover { background: var(--bg-tertiary); }
+.tree-item.selected { background: rgba(88,166,255,0.1); color: var(--text-primary); }
+.tree-item .icon { width: 16px; text-align: center; }
+.tree-group { padding-left: 16px; }
+.tree-header {
+  padding: 5px 10px; font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-top: 8px;
+}
+
+/* Detail tables */
+.detail-section { margin-bottom: 24px; }
+.detail-section h3 {
+  font-size: 12px; color: var(--text-muted); margin-bottom: 10px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.detail-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+.detail-grid .label { color: var(--text-secondary); }
+.detail-grid .value { color: var(--text-primary); font-family: 'SF Mono', monospace; font-size: 12px; }
+.info-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.info-table th {
+  text-align: left; padding: 8px 12px; background: var(--bg-tertiary);
+  color: var(--text-secondary); font-weight: 500; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0;
+}
+.info-table td {
+  padding: 6px 12px; border-bottom: 1px solid var(--border);
+  font-family: 'SF Mono', monospace; font-size: 11px;
+}
+.info-table tr:hover td { background: var(--bg-tertiary); }
+
+.encoding-badge {
+  display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 500;
+  background: rgba(88,166,255,0.12); color: var(--accent-blue);
+}
+.enc-rle { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.enc-dict { background: rgba(188,140,255,0.12); color: var(--accent-purple); }
+.enc-delta { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+
+.size-bar {
+  display: inline-block; height: 6px; border-radius: 3px;
+  background: var(--accent-blue); margin-right: 6px; vertical-align: middle;
+}
+
+/* Hex dump */
+.hex-dump {
+  font-family: 'SF Mono', monospace; font-size: 11px; line-height: 1.6;
+  background: var(--bg-tertiary); border-radius: 8px; padding: 12px;
+  overflow: auto; white-space: pre; color: var(--text-secondary); max-height: 500px;
+}
+.hex-dump .offset { color: var(--text-muted); }
+.hex-dump .ascii { color: var(--accent-green); }
+
+/* Table View tab */
+.table-view { display: flex; flex-direction: column; width: 100%; height: 100%; }
+.table-toolbar {
+  display: flex; align-items: center; padding: 10px 16px; gap: 12px;
+  border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0;
+}
+.table-toolbar input, .table-toolbar select {
+  background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 12px; color: var(--text-primary); font-size: 12px;
+}
+.table-toolbar input { width: 200px; }
+.table-toolbar .info { color: var(--text-secondary); font-size: 12px; margin-left: auto; }
+.data-table-wrap { flex: 1; overflow: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  position: sticky; top: 0; background: var(--bg-secondary); padding: 8px 12px;
+  text-align: left; border-bottom: 2px solid var(--border); cursor: pointer; z-index: 1;
+}
+.data-table th:hover { background: var(--bg-tertiary); }
+.data-table th .col-type { display: block; font-size: 10px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+.data-table td {
+  padding: 5px 12px; border-bottom: 1px solid var(--border);
+  font-family: 'SF Mono', monospace; font-size: 11px; white-space: nowrap;
+}
+.data-table tr:hover td { background: var(--bg-tertiary); }
+.null-val { color: var(--accent-red) !important; font-style: italic; }
+.pagination {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px; border-top: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0;
+}
+
+/* SQL tab */
+.sql-panel { display: flex; flex-direction: column; width: 100%; height: 100%; }
+.sql-editor-wrap { padding: 12px; border-bottom: 1px solid var(--border); background: var(--bg-secondary); flex-shrink: 0; }
+.sql-editor {
+  width: 100%; min-height: 60px; background: var(--bg-tertiary); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; color: var(--text-primary);
+  font-family: 'SF Mono', monospace; font-size: 13px; resize: vertical;
+}
+.sql-results { flex: 1; overflow: auto; }
+.sql-status { padding: 8px 16px; font-size: 11px; color: var(--text-secondary); background: var(--bg-secondary); border-top: 1px solid var(--border); flex-shrink: 0; }
+
+/* Empty / loading states */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--text-secondary); gap: 12px; }
+.empty-state .icon { font-size: 48px; opacity: 0.5; }
+.spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent-blue); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="demo-banner" role="note">
+  <span aria-hidden="true">⚠️</span>
+  <span><strong>Demo &amp; educational use only</strong> &mdash; not intended for production.</span>
+  <span class="sep">|</span>
+  <span class="note">Files are parsed entirely in your browser and never uploaded.</span>
+</div>
+<div class="header">
+  <h1>🗂️ <span>Parquet</span> File Inspector</h1>
+  <div class="drop-zone" id="dropZone"><span class="spinner"></span>Initializing DuckDB engine...</div>
+  <input type="file" id="fileInput" accept=".parquet" hidden>
+  <button class="btn btn-primary" id="loadDemoBtn" disabled>Load Demo: IoT Sensors (18MB, synthetic)</button>
+</div>
+<div class="tab-bar">
+  <div class="tab active" data-tab="structure">📐 Structure</div>
+  <div class="tab" data-tab="table">📊 Table View</div>
+  <div class="tab" data-tab="sql">🔍 SQL Query</div>
+</div>
+<div class="content">
+  <div class="tab-panel active" id="panel-structure">
+    <div class="structure-panel">
+      <div class="tree-panel" id="treePanel"><div class="empty-state"><div class="icon">📁</div><p>Load a file to inspect</p></div></div>
+      <div class="detail-panel" id="detailPanel"><div class="empty-state"><div class="icon">👈</div><p>Select an item from the tree</p></div></div>
+    </div>
+  </div>
+  <div class="tab-panel" id="panel-table">
+    <div class="table-view">
+      <div class="table-toolbar">
+        <input type="text" id="tableFilter" placeholder="Filter rows...">
+        <select id="pageSize"><option value="50">50 rows</option><option value="100">100 rows</option><option value="200">200 rows</option><option value="500">500 rows</option></select>
+        <span class="info" id="tableInfo">Load a file to view data</span>
+      </div>
+      <div class="data-table-wrap" id="dataTableWrap"><div class="empty-state"><div class="icon">📊</div><p>Load a file to view data</p></div></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+  <div class="tab-panel" id="panel-sql">
+    <div class="sql-panel">
+      <div class="sql-editor-wrap">
+        <textarea class="sql-editor" id="sqlEditor">-- Device health summary: which sensors reported the most problems?
+SELECT
+    device_id,
+    count(*)                                           AS readings,
+    count(*) FILTER (WHERE status = 'ERROR')           AS errors,
+    count(*) FILTER (WHERE status = 'WARN')            AS warnings,
+    count(*) FILTER (WHERE status = 'OFFLINE')         AS offline,
+    round(CAST(max(temperature_celsius) AS DOUBLE), 1) AS peak_temp_c,
+    round(CAST(avg(battery_level) AS DOUBLE) * 100, 1) AS avg_battery_pct
+FROM data
+GROUP BY device_id
+ORDER BY errors DESC
+LIMIT 20</textarea>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-primary" id="runSqlBtn">▶ Run (Ctrl+Enter)</button>
+          <span style="font-size:11px;color:var(--text-muted)">Table: <code>data</code> · Use <code>parquet_metadata('file.parquet')</code> for raw metadata</span>
+        </div>
+      </div>
+      <div class="sql-results" id="sqlResults"><div class="empty-state"><div class="icon">🔍</div><p>Run a query to see results</p></div></div>
+      <div class="sql-status" id="sqlStatus">Initializing DuckDB...</div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "apache-arrow": "https://cdn.jsdelivr.net/npm/apache-arrow@17.0.0/+esm"
+  }
+}
+</script>
+<script type="module">
+import * as duckdb from './duckdb/duckdb-browser.mjs';
+
+// ====== STATE ======
+const state = { db: null, conn: null, fileName: null, fileSize: 0, totalRows: 0, currentPage: 0, pageSize: 50, schema: null, metadata: null, rowGroupMeta: null, fileBuffer: null };
+
+// ====== DUCKDB INIT ======
+async function initDuckDB() {
+  try {
+    const base = new URL('.', window.location.href).href;
+    const bundles = await duckdb.selectBundle({
+      mvp: { mainModule: base + 'duckdb/duckdb-mvp.wasm', mainWorker: base + 'duckdb/duckdb-browser-mvp.worker.js' },
+      eh: { mainModule: base + 'duckdb/duckdb-eh.wasm', mainWorker: base + 'duckdb/duckdb-browser-eh.worker.js' }
+    });
+    const worker = new Worker(bundles.mainWorker);
+    const logger = new duckdb.ConsoleLogger();
+    const db = new duckdb.AsyncDuckDB(logger, worker);
+    await db.instantiate(bundles.mainModule);
+    state.db = db;
+    state.conn = await db.connect();
+    document.getElementById('sqlStatus').textContent = 'Ready';
+    document.getElementById('loadDemoBtn').disabled = false;
+    document.getElementById('dropZone').textContent = 'Drop a .parquet file here or click to browse';
+    console.log('DuckDB initialized successfully');
+  } catch(err) {
+    console.error('DuckDB init failed:', err);
+    document.getElementById('sqlStatus').textContent = 'DuckDB init failed: ' + err.message;
+    document.getElementById('dropZone').textContent = 'DuckDB failed to load. Try refreshing the page.';
+    document.getElementById('dropZone').classList.add('error');
+  }
+}
+
+// ====== FILE LOADING ======
+async function loadFile(file) {
+  const dropZone = document.getElementById('dropZone');
+  
+  if (!state.db) {
+    dropZone.textContent = 'Please wait — DuckDB is still loading...';
+    dropZone.classList.add('error');
+    return;
+  }
+  
+  dropZone.textContent = `Loading ${file.name}...`;
+  dropZone.className = 'drop-zone';
+  
+  try {
+    const buffer = await file.arrayBuffer();
+    state.fileBuffer = buffer.slice(0); // keep our own copy (registerFileBuffer transfers ownership)
+    state.fileName = file.name;
+    state.fileSize = buffer.byteLength;
+
+    // Verify PAR1 magic
+    const bytes = new Uint8Array(buffer);
+    const magic = String.fromCharCode(...bytes.slice(0,4));
+    const tailMagic = String.fromCharCode(...bytes.slice(-4));
+    if (magic !== 'PAR1' || tailMagic !== 'PAR1') throw new Error('Not a valid Parquet file (missing PAR1 magic)');
+
+    // Register in DuckDB
+    await state.db.registerFileBuffer(file.name, new Uint8Array(buffer));
+    
+    // Load data table
+    await state.conn.query(`CREATE OR REPLACE TABLE data AS SELECT * FROM parquet_scan('${file.name}')`);
+    const countRes = await state.conn.query('SELECT COUNT(*) as cnt FROM data');
+    state.totalRows = Number(countRes.toArray()[0].cnt);
+
+    // Get schema via parquet_schema
+    const schemaRes = await state.conn.query(`SELECT * FROM parquet_schema('${file.name}')`);
+    state.schema = schemaRes.toArray();
+
+    // Get metadata via parquet_metadata
+    const metaRes = await state.conn.query(`SELECT * FROM parquet_metadata('${file.name}')`);
+    state.metadata = metaRes.toArray();
+
+    // Get file-level metadata
+    const fileMetaRes = await state.conn.query(`SELECT * FROM parquet_file_metadata('${file.name}')`);
+    state.fileMeta = fileMetaRes.toArray()[0];
+
+    // Get key-value metadata (keys and values are BLOBs - cast to VARCHAR)
+    try {
+      const kvRes = await state.conn.query(`SELECT key::VARCHAR as key, value::VARCHAR as value FROM parquet_kv_metadata('${file.name}')`);
+      state.kvMeta = kvRes.toArray();
+    } catch(e) { state.kvMeta = []; }
+
+    // Build UI
+    renderTree();
+    state.currentPage = 0;
+    await renderTableView();
+
+    dropZone.textContent = `✓ ${file.name} (${formatBytes(state.fileSize)})`;
+    dropZone.classList.add('has-file');
+  } catch(err) {
+    dropZone.textContent = `Error: ${err.message}`;
+    dropZone.classList.add('error');
+    console.error(err);
+  }
+}
+
+async function loadDemoFile() {
+  const dropZone = document.getElementById('dropZone');
+  dropZone.textContent = 'Downloading demo file...';
+  try {
+    const resp = await fetch('iot_sensors.parquet');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const file = new File([blob], 'iot_sensors.parquet');
+    await loadFile(file);
+  } catch(err) {
+    dropZone.textContent = `Error loading demo: ${err.message}`;
+    dropZone.classList.add('error');
+  }
+}
+
+// ====== TREE ======
+function renderTree() {
+  const tree = document.getElementById('treePanel');
+  const numRowGroups = state.fileMeta ? Number(state.fileMeta.num_row_groups) : 0;
+
+  let html = '<div class="tree-header">File</div>';
+  html += treeItem('file-info', 'ℹ️', 'File Info');
+  html += treeItem('schema', '📋', 'Schema');
+  html += treeItem('kv-meta', '🏷️', 'Key-Value Metadata');
+
+  html += '<div class="tree-header">Row Groups</div>';
+  for (let i = 0; i < numRowGroups; i++) {
+    html += treeItem(`rg-${i}`, '📦', `Row Group ${i}`);
+  }
+
+  // Get unique columns for column-level view
+  const columns = [...new Set(state.metadata.map(m => m.path_in_schema))];
+  html += '<div class="tree-header">Columns</div>';
+  columns.forEach(col => {
+    html += treeItem(`col-${col}`, '🔹', col);
+  });
+
+  html += '<div class="tree-header">Footer</div>';
+  html += treeItem('footer-hex', '🔢', 'Hex Dump (tail)');
+
+  tree.innerHTML = html;
+  tree.querySelectorAll('.tree-item').forEach(item => {
+    item.addEventListener('click', () => {
+      tree.querySelectorAll('.tree-item').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      showDetail(item.dataset.id);
+    });
+  });
+}
+
+function treeItem(id, icon, text) {
+  return `<div class="tree-item" data-id="${esc(id)}"><span class="icon">${icon}</span>${esc(text)}</div>`;
+}
+
+// ====== DETAIL ======
+function showDetail(id) {
+  const panel = document.getElementById('detailPanel');
+  
+  if (id === 'file-info') panel.innerHTML = renderFileInfo();
+  else if (id === 'schema') panel.innerHTML = renderSchema();
+  else if (id === 'kv-meta') panel.innerHTML = renderKVMeta();
+  else if (id.startsWith('rg-')) panel.innerHTML = renderRowGroup(parseInt(id.split('-')[1]));
+  else if (id.startsWith('col-')) panel.innerHTML = renderColumn(id.slice(4));
+  else if (id === 'footer-hex') panel.innerHTML = renderFooterHex();
+}
+
+function renderFileInfo() {
+  const fm = state.fileMeta;
+  const created = fm.created_by || '(not specified)';
+  const fileSize = fm.file_size_bytes ? Number(fm.file_size_bytes) : state.fileSize;
+  return `<div class="detail-section"><h3>File Information</h3>
+    <div class="detail-grid">
+      <span class="label">File Name</span><span class="value">${esc(state.fileName)}</span>
+      <span class="label">File Size</span><span class="value">${formatBytes(fileSize)}</span>
+      <span class="label">Format Version</span><span class="value">${esc(fm.format_version || '?')}</span>
+      <span class="label">Total Rows</span><span class="value">${Number(fm.num_rows).toLocaleString()}</span>
+      <span class="label">Row Groups</span><span class="value">${esc(fm.num_row_groups)}</span>
+      <span class="label">Columns</span><span class="value">${state.schema.filter(s => s.num_children === null || Number(s.num_children) === 0).length}</span>
+      <span class="label">Created By</span><span class="value">${esc(created)}</span>
+      <span class="label">Footer Size</span><span class="value">${fm.footer_size ? formatBytes(Number(fm.footer_size)) : '-'}</span>
+      <span class="label">Encryption</span><span class="value">${fm.encryption_algorithm ? 'Yes' : 'None'}</span>
+    </div></div>`;
+}
+
+function renderSchema() {
+  let rows = state.schema.map(s => {
+    const type = s.type || (s.num_children ? 'GROUP' : '?');
+    const logicalType = s.logical_type || s.converted_type || '-';
+    const repetition = s.repetition_type || '-';
+    return `<tr><td style="padding-left:${(Number(s.depth)||0)*16}px">${esc(s.name)}</td><td>${esc(type)}</td><td>${esc(repetition)}</td><td>${esc(logicalType)}</td><td>${esc(s.type_length || '-')}</td></tr>`;
+  }).join('');
+  return `<div class="detail-section"><h3>Schema</h3>
+    <table class="info-table"><tr><th>Column</th><th>Physical Type</th><th>Repetition</th><th>Logical Type</th><th>Type Length</th></tr>${rows}</table></div>`;
+}
+
+function renderKVMeta() {
+  if (!state.kvMeta || state.kvMeta.length === 0) {
+    return `<div class="detail-section"><h3>Key-Value Metadata</h3><p style="color:var(--text-secondary)">None</p></div>`;
+  }
+  let html = '<div class="detail-section"><h3>Key-Value Metadata</h3>';
+  state.kvMeta.forEach(kv => {
+    let val = kv.value || '';
+    // Unescape \x22 -> " and other hex escapes.
+    // NOTE: this runs BEFORE esc() so that a payload encoded as \x3cscript\x3e
+    // is expanded first and then escaped — never the other way around.
+    val = val.replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    // Try to parse and prettify JSON
+    let display = '';
+    try {
+      const parsed = JSON.parse(val);
+      display = `<pre style="background:var(--bg-tertiary);padding:12px;border-radius:6px;overflow:auto;max-height:400px;font-size:11px;line-height:1.5;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;">${esc(JSON.stringify(parsed, null, 2))}</pre>`;
+    } catch(e) {
+      // Not JSON — show truncated (likely base64 binary like ARROW:schema)
+      if (val.length > 200) {
+        display = `<div style="font-size:11px;color:var(--text-secondary);font-style:italic;">Binary data (${formatBytes(val.length)}) — base64 encoded Arrow schema</div><pre style="background:var(--bg-tertiary);padding:12px;border-radius:6px;overflow:auto;max-height:100px;font-size:10px;color:var(--text-muted);word-break:break-all;white-space:pre-wrap;">${esc(val.slice(0, 500))}${val.length > 500 ? '...' : ''}</pre>`;
+      } else {
+        display = `<pre style="background:var(--bg-tertiary);padding:12px;border-radius:6px;overflow:auto;font-size:11px;color:var(--text-primary);white-space:pre-wrap;">${esc(val)}</pre>`;
+      }
+    }
+    html += `<div style="margin-bottom:16px;"><div style="font-size:12px;font-weight:600;color:var(--accent-blue);margin-bottom:6px;">${esc(kv.key)}</div>${display}</div>`;
+  });
+  html += '</div>';
+  return html;
+}
+
+function renderRowGroup(rgIdx) {
+  const rgRows = state.metadata.filter(m => Number(m.row_group_id) === rgIdx);
+  if (rgRows.length === 0) return '<p>No data for this row group</p>';
+
+  const numRows = rgRows[0].row_group_num_rows ? Number(rgRows[0].row_group_num_rows) : '?';
+  const totalCompressed = rgRows.reduce((s, r) => s + Number(r.total_compressed_size || 0), 0);
+  const totalUncompressed = rgRows.reduce((s, r) => s + Number(r.total_uncompressed_size || 0), 0);
+  const maxSize = Math.max(...rgRows.map(r => Number(r.total_compressed_size || 0)));
+
+  let colRows = rgRows.map(r => {
+    const barW = Math.max(4, (Number(r.total_compressed_size || 0) / maxSize) * 80);
+    const enc = getEncodingBadge(r.encodings);
+    return `<tr>
+      <td>${esc(r.path_in_schema)}</td><td>${esc(r.type || '-')}</td>
+      <td>${enc}</td><td>${esc(r.compression || '-')}</td>
+      <td><span class="size-bar" style="width:${barW}px"></span>${formatBytes(Number(r.total_compressed_size || 0))}</td>
+      <td>${formatBytes(Number(r.total_uncompressed_size || 0))}</td>
+      <td>${Number(r.num_values || 0).toLocaleString()}</td>
+      <td>${r.stats_null_count !== null ? Number(r.stats_null_count).toLocaleString() : '-'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="detail-section"><h3>Row Group ${rgIdx}</h3>
+    <div class="detail-grid">
+      <span class="label">Rows</span><span class="value">${Number(numRows).toLocaleString()}</span>
+      <span class="label">Compressed Size</span><span class="value">${formatBytes(totalCompressed)}</span>
+      <span class="label">Uncompressed Size</span><span class="value">${formatBytes(totalUncompressed)}</span>
+      <span class="label">Compression Ratio</span><span class="value">${totalCompressed > 0 ? (totalUncompressed / totalCompressed).toFixed(2) + 'x' : '-'}</span>
+      <span class="label">Columns</span><span class="value">${rgRows.length}</span>
+    </div></div>
+    <div class="detail-section"><h3>Column Chunks</h3>
+    <table class="info-table"><tr><th>Column</th><th>Type</th><th>Encodings</th><th>Compression</th><th>Compressed</th><th>Uncompressed</th><th>Values</th><th>Nulls</th></tr>${colRows}</table></div>`;
+}
+
+function renderColumn(colName) {
+  const colRows = state.metadata.filter(m => m.path_in_schema === colName);
+  if (colRows.length === 0) return '<p>No metadata for this column</p>';
+  
+  const first = colRows[0];
+  const totalCompressed = colRows.reduce((s, r) => s + Number(r.total_compressed_size || 0), 0);
+  const totalUncompressed = colRows.reduce((s, r) => s + Number(r.total_uncompressed_size || 0), 0);
+  const totalNulls = colRows.reduce((s, r) => s + Number(r.stats_null_count || 0), 0);
+  const totalValues = colRows.reduce((s, r) => s + Number(r.num_values || 0), 0);
+
+  let perRG = colRows.map((r, i) => `<tr>
+    <td>RG ${esc(r.row_group_id)}</td>
+    <td>${formatBytes(Number(r.total_compressed_size || 0))}</td>
+    <td>${formatBytes(Number(r.total_uncompressed_size || 0))}</td>
+    <td>${r.stats_min !== null ? esc(String(r.stats_min).slice(0,30)) : '-'}</td>
+    <td>${r.stats_max !== null ? esc(String(r.stats_max).slice(0,30)) : '-'}</td>
+    <td>${r.stats_null_count !== null ? Number(r.stats_null_count).toLocaleString() : '-'}</td>
+    <td>${r.stats_distinct_count !== null ? Number(r.stats_distinct_count).toLocaleString() : '-'}</td>
+  </tr>`).join('');
+
+  return `<div class="detail-section"><h3>Column: ${esc(colName)}</h3>
+    <div class="detail-grid">
+      <span class="label">Physical Type</span><span class="value">${esc(first.type || '-')}</span>
+      <span class="label">Encodings</span><span class="value">${getEncodingBadge(first.encodings)}</span>
+      <span class="label">Compression</span><span class="value">${esc(first.compression || '-')}</span>
+      <span class="label">Total Compressed</span><span class="value">${formatBytes(totalCompressed)}</span>
+      <span class="label">Total Uncompressed</span><span class="value">${formatBytes(totalUncompressed)}</span>
+      <span class="label">Compression Ratio</span><span class="value">${totalCompressed > 0 ? (totalUncompressed/totalCompressed).toFixed(2)+'x' : '-'}</span>
+      <span class="label">Total Values</span><span class="value">${totalValues.toLocaleString()}</span>
+      <span class="label">Total Nulls</span><span class="value">${totalNulls.toLocaleString()}</span>
+      <span class="label">Has Dictionary</span><span class="value">${esc(first.has_dictionary_page !== undefined ? first.has_dictionary_page : (String(first.encodings||'').includes('DICT') ? 'Yes' : 'No'))}</span>
+    </div></div>
+    <div class="detail-section"><h3>Per Row Group Statistics</h3>
+    <table class="info-table"><tr><th>Row Group</th><th>Compressed</th><th>Uncompressed</th><th>Min</th><th>Max</th><th>Nulls</th><th>Distinct</th></tr>${perRG}</table></div>`;
+}
+
+function renderFooterHex() {
+  const bytes = new Uint8Array(state.fileBuffer);
+  // Read footer length from last 8 bytes (4 byte int + 4 byte magic)
+  const view = new DataView(state.fileBuffer);
+  const footerLen = view.getInt32(state.fileBuffer.byteLength - 8, true);
+  const footerStart = state.fileBuffer.byteLength - 8 - footerLen;
+  
+  // Show first 1024 bytes of footer
+  const footerBytes = bytes.slice(footerStart, Math.min(footerStart + 1024, state.fileBuffer.byteLength));
+  const hexLines = [];
+  for (let i = 0; i < footerBytes.length; i += 16) {
+    const chunk = footerBytes.slice(i, i + 16);
+    const hex = Array.from(chunk).map(b => b.toString(16).padStart(2,'0')).join(' ');
+    const ascii = Array.from(chunk).map(b => b >= 32 && b <= 126 ? String.fromCharCode(b) : '.').join('');
+    hexLines.push(`<span class="offset">${(footerStart+i).toString(16).padStart(8,'0')}</span>  ${hex.padEnd(48)}  <span class="ascii">${esc(ascii)}</span>`);
+  }
+
+  return `<div class="detail-section"><h3>Footer Binary (offset 0x${footerStart.toString(16)})</h3>
+    <div class="detail-grid" style="margin-bottom:12px">
+      <span class="label">Footer Offset</span><span class="value">0x${footerStart.toString(16)} (${formatBytes(footerStart)})</span>
+      <span class="label">Footer Length</span><span class="value">${formatBytes(footerLen)}</span>
+      <span class="label">Showing</span><span class="value">First ${Math.min(1024, footerLen)} bytes of ${formatBytes(footerLen)}</span>
+    </div>
+    <div class="hex-dump">${hexLines.join('\n')}</div></div>`;
+}
+
+// ====== TABLE VIEW ======
+async function renderTableView() {
+  if (!state.conn || !state.totalRows) return;
+  const offset = state.currentPage * state.pageSize;
+  try {
+    const result = await state.conn.query(`SELECT * FROM data LIMIT ${state.pageSize} OFFSET ${offset}`);
+    const rows = result.toArray();
+    const fields = result.schema.fields;
+
+    document.getElementById('tableInfo').textContent = `Rows ${offset+1}–${Math.min(offset+state.pageSize, state.totalRows)} of ${state.totalRows.toLocaleString()}`;
+
+    let html = '<table class="data-table"><thead><tr>';
+    fields.forEach(f => { html += `<th>${esc(f.name)}<span class="col-type">${esc(f.type)}</span></th>`; });
+    html += '</tr></thead><tbody>';
+    rows.forEach(row => {
+      html += '<tr>';
+      fields.forEach(f => {
+        const v = row[f.name];
+        if (v === null || v === undefined) html += '<td class="null-val">NULL</td>';
+        else if (v instanceof Date) html += `<td>${v.toISOString().slice(0,19).replace('T',' ')}</td>`;
+        else if (typeof v === 'number' && !Number.isInteger(v)) html += `<td>${v.toFixed(2)}</td>`;
+        else if (typeof v === 'bigint') html += `<td>${v.toString()}</td>`;
+        else html += `<td>${esc(String(v).slice(0,50))}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('dataTableWrap').innerHTML = html;
+
+    // Pagination
+    const totalPages = Math.ceil(state.totalRows / state.pageSize);
+    document.getElementById('pagination').innerHTML = `
+      <button class="btn" onclick="window._goPage(0)" ${state.currentPage===0?'disabled':''}>⟨⟨</button>
+      <button class="btn" onclick="window._goPage(${state.currentPage-1})" ${state.currentPage===0?'disabled':''}>⟨</button>
+      <span style="font-size:12px;color:var(--text-secondary)">Page ${state.currentPage+1} of ${totalPages.toLocaleString()}</span>
+      <button class="btn" onclick="window._goPage(${state.currentPage+1})" ${state.currentPage>=totalPages-1?'disabled':''}>⟩</button>
+      <button class="btn" onclick="window._goPage(${totalPages-1})" ${state.currentPage>=totalPages-1?'disabled':''}>⟩⟩</button>`;
+  } catch(err) {
+    document.getElementById('dataTableWrap').innerHTML = `<div class="empty-state"><p style="color:var(--accent-red)">${esc(err.message)}</p></div>`;
+  }
+}
+window._goPage = async (p) => { state.currentPage = Math.max(0, p); await renderTableView(); };
+
+// ====== SQL ======
+async function runSQL() {
+  const sql = document.getElementById('sqlEditor').value.trim();
+  if (!sql || !state.conn) return;
+  const statusEl = document.getElementById('sqlStatus');
+  statusEl.textContent = 'Running...';
+  const t0 = performance.now();
+  try {
+    const result = await state.conn.query(sql);
+    const elapsed = (performance.now()-t0).toFixed(1);
+    const rows = result.toArray();
+    const fields = result.schema.fields;
+    let html = '<table class="data-table"><thead><tr>';
+    fields.forEach(f => { html += `<th>${esc(f.name)}<span class="col-type">${esc(f.type)}</span></th>`; });
+    html += '</tr></thead><tbody>';
+    rows.slice(0,1000).forEach(row => {
+      html += '<tr>';
+      fields.forEach(f => {
+        const v = row[f.name];
+        if (v === null || v === undefined) html += '<td class="null-val">NULL</td>';
+        else if (v instanceof Date) html += `<td>${v.toISOString().slice(0,19).replace('T',' ')}</td>`;
+        else if (typeof v === 'number' && !Number.isInteger(v)) html += `<td>${v.toFixed(4)}</td>`;
+        else if (typeof v === 'bigint') html += `<td>${v.toString()}</td>`;
+        else html += `<td>${esc(String(v).slice(0,100))}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('sqlResults').innerHTML = html;
+    statusEl.textContent = `✓ ${rows.length} row${rows.length!==1?'s':''} in ${elapsed}ms${rows.length>1000?' (showing first 1000)':''}`;
+  } catch(err) {
+    document.getElementById('sqlResults').innerHTML = `<div style="padding:20px;color:var(--accent-red);font-family:monospace;font-size:12px">${esc(err.message)}</div>`;
+    statusEl.textContent = '✗ Error';
+  }
+}
+
+// ====== HELPERS ======
+// Escape untrusted text before interpolating into an HTML template string.
+// Parquet-supplied values (column names, key-value metadata, statistics,
+// file names, error messages) are attacker-controlled and must never reach
+// innerHTML unescaped. Safe for both element text and quoted attribute values.
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(1) + ' GB';
+}
+
+function getEncodingBadge(encodings) {
+  if (!encodings) return '-';
+  const enc = String(encodings);
+  const badges = enc.split(',').map(e => {
+    e = e.trim();
+    let cls = '';
+    if (e.includes('DICT') || e.includes('RLE_DICTIONARY')) cls = 'enc-dict';
+    else if (e.includes('RLE')) cls = 'enc-rle';
+    else if (e.includes('DELTA')) cls = 'enc-delta';
+    return `<span class="encoding-badge ${cls}">${esc(e)}</span>`;
+  });
+  return badges.join(' ');
+}
+
+// ====== INIT ======
+(async () => {
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(`panel-${tab.dataset.tab}`).classList.add('active');
+    });
+  });
+
+  // File input
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener('change', e => { if (e.target.files.length) loadFile(e.target.files[0]); });
+
+  // Demo + SQL
+  document.getElementById('loadDemoBtn').addEventListener('click', loadDemoFile);
+  document.getElementById('runSqlBtn').addEventListener('click', runSQL);
+  document.getElementById('sqlEditor').addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter') runSQL(); });
+  document.getElementById('pageSize').addEventListener('change', e => { state.pageSize = parseInt(e.target.value); state.currentPage = 0; renderTableView(); });
+
+  // Init DuckDB
+  await initDuckDB();
+})();
+</script>
+</body>
+</html>
