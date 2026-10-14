@@ -1,110 +1,59 @@
-# Contributing to Parquet File Inspector
+# Contributing Guidelines
 
-Thank you for your interest in contributing! This document provides guidelines
-for contributing to this project.
+Thank you for your interest in contributing to our project. Whether it's a bug report, new feature, correction, or additional
+documentation, we greatly value feedback and contributions from our community.
 
-## How to Contribute
+Please read through this document before submitting any issues or pull requests to ensure we have all the necessary
+information to effectively respond to your bug report or contribution.
 
-### Reporting Issues
 
-- Use GitLab Issues to report bugs or request features
-- Include browser version, OS, and steps to reproduce for bug reports
-- Attach a sample Parquet file (or describe its schema) if the issue is file-specific
+## Reporting Bugs/Feature Requests
 
-### Submitting Changes
+We welcome you to use the GitHub issue tracker to report bugs or suggest features.
 
-1. Fork the repository
-2. Create a feature branch from `main` (`git checkout -b feature/my-change`)
-3. Make your changes, following the coding guidelines below
-4. Test locally (`python3 -m http.server 8080` in `src/frontend/`)
-5. Commit with a descriptive message (see commit format below)
-6. Push to your fork and open a Merge Request
+When filing an issue, please check existing open, or recently closed, issues to make sure somebody else hasn't already
+reported the issue. Please try to include as much information as you can. Details like these are incredibly useful:
 
-### Commit Message Format
+* A reproducible test case or series of steps
+* The version of our code being used
+* Any modifications you've made relevant to the bug
+* Anything unusual about your environment or deployment
 
-```
-type(scope): short description
 
-Longer description if needed.
-```
+## Contributing via Pull Requests
+Contributions via pull requests are much appreciated. Before sending us a pull request, please ensure that:
 
-Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+1. You are working against the latest source on the *main* branch.
+2. You check existing open, and recently merged, pull requests to make sure someone else hasn't addressed the problem already.
+3. You open an issue to discuss any significant work - we would hate for your time to be wasted.
 
-Examples:
-- `feat(ui): add column sorting in table view`
-- `fix(duckdb): handle files with no key-value metadata`
-- `docs: add screenshot of row group view`
+To send us a pull request, please:
 
-## Coding Guidelines
+1. Fork the repository.
+2. Modify the source; please focus on the specific change you are contributing. If you also reformat all the code, it will be hard for us to focus on your change.
+3. Ensure local tests pass.
+4. Commit to your fork using clear commit messages.
+5. Send us a pull request, answering any default questions in the pull request interface.
+6. Pay attention to any automated CI failures reported in the pull request, and stay involved in the conversation.
 
-### Frontend (src/frontend/)
+GitHub provides additional document on [forking a repository](https://help.github.com/articles/fork-a-repo/) and
+[creating a pull request](https://help.github.com/articles/creating-a-pull-request/).
 
-- **No build step.** The app is a single HTML file - keep it that way.
-- **No frameworks.** Vanilla JS, CSS custom properties for theming.
-- **Comments.** Add JSDoc-style comments for functions. Explain *why*, not *what*.
-- **Accessibility.** New UI elements should have ARIA labels and keyboard support.
-- **Error handling.** Always catch and display errors to the user - never fail silently.
 
-### Infrastructure (infrastructure/)
+## Finding contributions to work on
+Looking at the existing issues is a great way to find something to contribute on. As our projects, by default, use the default GitHub issue labels (enhancement/bug/duplicate/help wanted/invalid/question/wontfix), looking at any 'help wanted' issues is a great place to start.
 
-- **CDK only.** No raw CloudFormation templates.
-- **Comments.** Every construct should have a comment explaining its purpose.
-- **Security.** Never open S3 to public. Never add Lambda without least-privilege IAM.
-
-### Scripts (scripts/)
-
-- **Portable.** Scripts should work on macOS and Linux.
-- **Idempotent.** Running a script twice should produce the same result.
-- **Verbose.** Print what you're doing at each step.
-
-## Development Setup
-
-```bash
-# Clone
-git clone git@ssh.gitlab.aws.dev:pergamin/parquet-file-inspector.git
-cd parquet-file-inspector
-
-# Download DuckDB WASM binaries
-./scripts/download-duckdb-wasm.sh
-
-# Generate sample data (optional - needs pyarrow)
-pip3 install pyarrow numpy
-python3 scripts/generate_sample_data.py
-
-# Serve locally
-cd src/frontend
-python3 -m http.server 8080
-# Open http://localhost:8080
-```
-
-## Testing
-
-### Manual Testing Checklist
-
-Before submitting a MR, verify:
-
-- [ ] Demo file loads successfully via "Load Demo File" button
-- [ ] Drag-and-drop works with a real Parquet file
-- [ ] All three tabs render correctly (Structure, Table View, SQL Query)
-- [ ] Schema shows column names and types (not "GROUP" for everything)
-- [ ] Key-Value Metadata shows decoded strings (not raw bytes)
-- [ ] Hex Dump renders footer bytes
-- [ ] SQL queries execute and return results
-- [ ] Page works in Chrome, Firefox, and Safari
-- [ ] No console errors in the browser developer tools
-
-### CDK Testing
-
-```bash
-cd infrastructure
-npm install
-npx cdk synth  # Should produce CloudFormation without errors
-```
 
 ## Code of Conduct
+This project has adopted the [Amazon Open Source Code of Conduct](https://aws.github.io/code-of-conduct).
+For more information see the [Code of Conduct FAQ](https://aws.github.io/code-of-conduct-faq) or contact
+opensource-codeofconduct@amazon.com with any additional questions or comments.
 
-This project follows the [Amazon Open Source Code of Conduct](CODE_OF_CONDUCT.md).
 
-## License
+## Security issue notifications
+If you discover a potential security issue in this project we ask that you notify AWS/Amazon Security via our [vulnerability reporting page](http://aws.amazon.com/security/vulnerability-reporting/). Please do **not** create a public github issue.
 
-By contributing, you agree that your contributions will be licensed under the MIT-0 License.
+
+## Licensing
+
+See the [LICENSE](LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.
